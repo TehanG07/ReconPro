@@ -1,4 +1,5 @@
 import os
+import re
 from urllib.parse import urlparse, parse_qs
 from collections import defaultdict
 from tqdm import tqdm
@@ -32,11 +33,40 @@ extension_categories = {
     'css': ['.css'],
 }
 
+# 🛡 Advanced Regex for Sensitive Files/Paths
+sensitive_path_patterns = [
+    r'(?i)/?(admin|administrator|wp-admin|cpanel|dashboard|panel|console)(/|$)',
+    r'(?i)/(login|signin|auth|authentication)(/|\.php|\.asp|\.jsp|\.html|$)',
+    r'(?i)/?(config|configuration|settings|setup|install|system_setup)(\..+|/|$)',
+    r'(?i)/?(secret|private|internal|hidden|secure|vault)(/|$)',
+    r'(?i)/?(backup|bak|bkp|old|archive)(\..+|/|$)',
+    r'(?i)/?(debug|dev|test|staging|sandbox|beta)(/|$)',
+    r'(?i)/?(database|db|sql|dump|mysql|mongo)(\..+|/|$)',
+    r'(?i)/?.+\.(sql|sqlite|json|csv|zip|gz|bak|tar|7z|rar|bkp)$',
+    r'(?i)/?.+\.(bak|bkp|backup|old|tmp|temp)$',
+    r'(?i)/?(logs?|debug|trace|error)(\.txt|\.log|\.json|\.csv|/|$)',
+    r'(?i)/?(env|\.env|\.env\.local|\.env\.dev|\.env\.example|\.env\.backup)$',
+    r'(?i)/?.+\.(pem|cert|crt|key|pfx|p12|cer|der|jks|keystore)$',
+    r'(?i)/?.+\.(c|cpp|java|py|rb|go|sh|pl|php|jsp|asp|lua|swift)$',
+    r'(?i)/?.+\.(sh|ps1|bat|cmd|cgi)$',
+    r'(?i)/?(wp-content|wp-includes|joomla|drupal|cms|magento)(/|$)',
+    r'(?i)/?(readme|license|changelog|todo|notes?|info)(\.md|\.txt|\.html|/|$)',
+    r'(?i)/?(\.git|\.svn|\.hg|\.bzr|\.cvs|\.DS_Store|\.idea|\.vscode)(/|$)',
+    r'(?i)/?(robots\.txt|crossdomain\.xml|sitemap\.xml|phpinfo\.php|index\.php\?info)(/|$)',
+]
+
+# 🔍 Check if path is sensitive
+def is_sensitive_path(path):
+    for pattern in sensitive_path_patterns:
+        if re.search(pattern, path):
+            return True
+    return False
+
 # 🎯 Banner
 def banner():
     print(f"""{Colors.OKCYAN}
 ╔═══════════════════════════════════════════════╗
-║         🛡️  PassiveReconPro v1.0 🕵️‍♂️          ║
+║         🛡  PassiveReconPro v1.0 🕵♂          ║
 ║     Advanced URL Intelligence & Analyzer      ║
 ╚═══════════════════════════════════════════════╝
 {Colors.ENDC}""")
@@ -73,15 +103,19 @@ def extract_dirs_files_params(urls):
         parts = path.strip("/").split("/")
         for i in range(1, len(parts)):
             dir_path = "/" + "/".join(parts[:i]) + "/"
-            directories.add(dir_path)
+            if is_sensitive_path(dir_path):
+                directories.add(dir_path)
 
         # 📄 Extract files
         if is_file_path(path):
-            files.add(path)
-            category = categorize_file(path)
-            categorized_files[category].add(path)
+            if is_sensitive_path(path):
+                files.add(path)
+                category = categorize_file(path)
+                categorized_files[category].add(path)
         else:
-            directories.add(path if path.endswith("/") else path + "/")
+            dir_cleaned = path if path.endswith("/") else path + "/"
+            if is_sensitive_path(dir_cleaned):
+                directories.add(dir_cleaned)
 
         # 🔍 CMS detection
         if "wp-admin" in path or "wp-content" in path:
@@ -125,8 +159,8 @@ def print_summary(domains, directories, files, parameters, categorized_files, cm
     for d in domains:
         print(f"   - {d}")
 
-    print(f"{Colors.OKGREEN}📁 Total directories: {len(directories)}")
-    print(f"{Colors.OKBLUE}📄 Total files: {len(files)}")
+    print(f"{Colors.OKGREEN}📁 Sensitive directories: {len(directories)}")
+    print(f"{Colors.OKBLUE}📄 Sensitive files: {len(files)}")
 
     print(f"{Colors.WARNING}🔍 Parameters Extracted: {len(parameters)}")
     for p in parameters:
@@ -134,7 +168,7 @@ def print_summary(domains, directories, files, parameters, categorized_files, cm
 
     print(f"{Colors.FAIL}🧩 CMS Detection Hits: {', '.join(cms_hits) if cms_hits else 'None'}{Colors.ENDC}")
 
-    print(f"{Colors.BOLD}\n📂 File Extensions Breakdown:{Colors.ENDC}")
+    print(f"{Colors.BOLD}\n📂 Sensitive File Extension Breakdown:{Colors.ENDC}")
     for cat, items in categorized_files.items():
         print(f" - {cat.upper()}: {len(items)}")
 
@@ -163,7 +197,5 @@ def run_passive_recon(input_path):
 
 # 🧪 Direct usage example
 if __name__ == "__main__":
-    # 📝 Replace with your file or uncomment below to ask:
-    # input_path = input("📂 Enter URL list file: ").strip()
-    input_path = "urls.txt"
+    input_path = "urls.txt"  # Replace or uncomment input prompt if needed
     run_passive_recon(input_path)
